@@ -1,0 +1,1 @@
+A way for our Ohana to return to the office as the COVID situation eases up in a safe and rotational manner that encourages social distancing. 
