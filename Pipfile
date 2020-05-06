@@ -6,8 +6,7 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
-flask = "*"
-flask-restful = "*"
+mip = "==1.6.5"
 
 [requires]
 python_version = "3"
