@@ -1,11 +1,12 @@
-from mip import Model, xsum, maximize, BINARY
+from mip import Model, xsum, maximize, BINARY, INTEGER
 import math
 
 NUM_SEATS = 12
 ROW_SIZE = 3
 AISLE_FUDGE_FACTOR = 5 #feet
+SEAT_DISTANCE = 3 #feet
 
-NUM_ROTATION_DAYS = 65
+NUM_ROTATION_DAYS = 4
 
 
 def solve_linear_model():
@@ -13,8 +14,11 @@ def solve_linear_model():
 
     d = [[distance_bw_seats(i, j) for j in range(NUM_SEATS)] for i in range(NUM_SEATS)]
     w = [[m.add_var(var_type=BINARY) for j in range(NUM_SEATS)] for i in range(NUM_SEATS)] # 1 = same day, 0 = else
+    n = [m.add_var(var_type=BINARY) for i in range(NUM_SEATS)]
+    # t1 = [[m.add_var(var_type=INTEGER) for j in range(NUM_SEATS)] for i in range(NUM_SEATS)]
+    # t2 = [[m.add_var(var_type=INTEGER) for j in range(NUM_SEATS)] for i in range(NUM_SEATS)]
 
-    m.objective = maximize(xsum([w[i][j] * d[i][j] for j in range(NUM_SEATS)] for i in range(NUM_SEATS)))
+    m.objective = maximize(xsum([w[i][j] * d[i][j] for j in range(NUM_SEATS) if j != i] for i in range(NUM_SEATS)))
 
     for i in range(NUM_SEATS):
         # you have to show up on the same day as yourself
@@ -22,22 +26,30 @@ def solve_linear_model():
 
     for i in range(NUM_SEATS):
         for j in range(i, NUM_SEATS):
-            # weights should be match both ways
+            # commutative property: weights should be match both ways
             m += w[i][j] == w[j][i]
 
     for i in range(NUM_SEATS):
         for j in range(NUM_SEATS):
             if i != j:
                 # 6 feet constraint
-                m += d[i][j] - w[i][j] >= 6/3 - 1
+                if d[i][j] < 6/SEAT_DISTANCE:
+                    m += w[i][j] == 0
 
     for i in range(NUM_SEATS):
         for j in range(NUM_SEATS):
             for k in range(NUM_SEATS):
+                # transitive property
                 m += w[i][j] + w[i][k] - 1 <= w[j][k]
+                # m += w[j][k] <= t1[j][k] + t2[j][k]
+                # m += t1[j][k] - t2[j][k] == w[i][j] + w[i][k] - 1
+                # m += t1[j][k] >= 0
 
-    # number of new days, seat by seat
-    n = [(i+1)-xsum(w[j][i] for j in range(i)) for i in range(NUM_SEATS)]
+    s = [xsum(w[j][i] for j in range(i)) for i in range(NUM_SEATS)]
+    ss = [s[i]/(i+1) for i in range(NUM_SEATS)]
+    for i in range(NUM_SEATS):
+        m += n[i] >= 1-ss[i]-.999
+        m += n[i] <= 1-ss[i]
     # total number of days constraint
     m += xsum(n[i] for i in range(NUM_SEATS)) <= NUM_ROTATION_DAYS
 
@@ -45,9 +57,16 @@ def solve_linear_model():
 
     print(f"num sol:{m.num_solutions}")
 
-    sol = [[w[i][j].x for j in range(NUM_SEATS)] for i in range(NUM_SEATS)]
-    for row in sol:
+    if m.num_solutions == 0:
+        return
+
+    print("sol_w")
+    sol_w = [[w[i][j].x for j in range(NUM_SEATS)] for i in range(NUM_SEATS)]
+    for row in sol_w:
         print(row)
+    print("sol_n")
+    sol_n = [n[i].x for i in range(NUM_SEATS)]
+    print(sol_n)
 
     total_days = 0
     for i in range(NUM_SEATS):
